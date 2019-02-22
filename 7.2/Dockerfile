@@ -1,19 +1,31 @@
 FROM centos/s2i-base-centos7
 
-# This image provides an Apache+PHP environment for running PHP
+MAINTAINER Vitaly Yakovenko <vitaly.yakovenko@serverbee.net>
+
+# This image provides an NGINX+PHP-FPM environment for running PHP
 # applications.
 
 EXPOSE 8080
 EXPOSE 8443
 
 # Description
-# This image provides an Apache 2.4 + PHP 7.2 environment for running PHP applications.
+# This image provides an NGINX 1.14 + PHP-FPM 7.2 environment for running PHP applications.
 # Exposed ports:
 # * 8080 - alternative port for http
 
+ENV NGINX_VERSION=1.14 \
+    NGINX_SHORT_VER=114 \
+    VERSION=0
+
+ENV NGINX_CONFIGURATION_PATH=${APP_ROOT}/etc/nginx.d \
+    NGINX_CONF_PATH=/etc/opt/rh/rh-nginx${NGINX_SHORT_VER}/nginx/nginx.conf \
+    NGINX_DEFAULT_CONF_PATH=${APP_ROOT}/etc/nginx.default.d \
+    NGINX_CONTAINER_SCRIPTS_PATH=/usr/share/container-scripts/nginx \
+    NGINX_APP_ROOT=${APP_ROOT}
+
 ENV PHP_VERSION=7.2 \
     PHP_VER_SHORT=72 \
-    NAME=php \
+    NAME=nginx-php-fpm \
     PATH=$PATH:/opt/rh/rh-php72/root/usr/bin
 
 ENV SUMMARY="Platform for building and running PHP $PHP_VERSION applications" \
@@ -28,7 +40,7 @@ is probably as a replacement for CGI scripts."
 LABEL summary="${SUMMARY}" \
       description="${DESCRIPTION}" \
       io.k8s.description="${DESCRIPTION}" \
-      io.k8s.display-name="Apache 2.4 with PHP ${PHP_VERSION}" \
+      io.k8s.display-name="NGINX 1.14 with PHP-FPM ${PHP_VERSION}" \
       io.openshift.expose-services="8080:http" \
       io.openshift.tags="builder,${NAME},${NAME}${PHP_VER_SHORT},rh-${NAME}${PHP_VER_SHORT}" \
       io.openshift.s2i.scripts-url="image:///usr/libexec/s2i" \
@@ -40,12 +52,12 @@ LABEL summary="${SUMMARY}" \
       usage="s2i build https://github.com/sclorg/s2i-php-container.git --context-dir=${PHP_VERSION}/test/test-app centos/${NAME}-${PHP_VER_SHORT}-centos7 sample-server" \
       maintainer="SoftwareCollections.org <sclorg@redhat.com>"
 
-# Install Apache httpd and PHP
+# Install PHP-FPM
 RUN yum install -y centos-release-scl && \
-    INSTALL_PKGS="rh-php72 rh-php72-php rh-php72-php-mysqlnd rh-php72-php-pgsql rh-php72-php-bcmath \
+    INSTALL_PKGS="rh-nginx114 rh-php72 rh-php72-php-fpm rh-php72-php-mysqlnd rh-php72-php-pgsql rh-php72-php-bcmath \
                   rh-php72-php-gd rh-php72-php-intl rh-php72-php-ldap rh-php72-php-mbstring rh-php72-php-pdo \
                   rh-php72-php-process rh-php72-php-soap rh-php72-php-opcache rh-php72-php-xml \
-                  rh-php72-php-gmp rh-php72-php-pecl-apcu httpd24-mod_ssl" && \
+                  rh-php72-php-gmp rh-php72-php-pecl-apcu nss_wrapper" && \
     yum install -y --setopt=tsflags=nodocs $INSTALL_PKGS --nogpgcheck && \
     rpm -V $INSTALL_PKGS && \
     yum clean all -y
@@ -54,14 +66,6 @@ ENV PHP_CONTAINER_SCRIPTS_PATH=/usr/share/container-scripts/php/ \
     APP_DATA=${APP_ROOT}/src \
     PHP_DEFAULT_INCLUDE_PATH=/opt/rh/rh-php72/root/usr/share/pear \
     PHP_SYSCONF_PATH=/etc/opt/rh/rh-php72 \
-    PHP_HTTPD_CONF_FILE=rh-php72-php.conf \
-    HTTPD_CONFIGURATION_PATH=${APP_ROOT}/etc/conf.d \
-    HTTPD_MAIN_CONF_PATH=/etc/httpd/conf \
-    HTTPD_MAIN_CONF_D_PATH=/etc/httpd/conf.d \
-    HTTPD_VAR_RUN=/var/run/httpd \
-    HTTPD_DATA_PATH=/var/www \
-    HTTPD_DATA_ORIG_PATH=/opt/rh/httpd24/root/var/www \
-    HTTPD_VAR_PATH=/opt/rh/httpd24/root/var \
     SCL_ENABLED=rh-php72
 
 # Copy the S2I scripts from the specific language image to $STI_SCRIPTS_PATH
@@ -71,7 +75,31 @@ COPY ./s2i/bin/ $STI_SCRIPTS_PATH
 COPY ./root/ /
 
 # Reset permissions of filesystem to default values
-RUN /usr/libexec/container-setup && rpm-file-permissions
+RUN rpm-file-permissions
+
+# In order to drop the root user, we have to make some directories world
+# writeable as OpenShift default security model is to run the container under
+# random UID.
+RUN sed -i -f ${NGINX_APP_ROOT}/nginxconf.sed ${NGINX_CONF_PATH} && \
+    chmod a+rwx ${NGINX_CONF_PATH} && \
+    mkdir -p ${NGINX_APP_ROOT}/etc/nginx.d/ && \
+    mkdir -p ${NGINX_APP_ROOT}/etc/nginx.default.d/ && \
+    mkdir -p ${NGINX_APP_ROOT}/src/nginx-start/ && \
+    mkdir -p ${NGINX_CONTAINER_SCRIPTS_PATH}/nginx-start && \
+    mkdir -p /var/log/nginx && \
+    ln -sf /dev/stdout /var/log/nginx/access.log && \
+    ln -sf /dev/stderr /var/log/nginx/error.log && \
+    chmod -R a+rwx ${NGINX_APP_ROOT}/etc && \
+    chmod -R a+rwx /var/opt/rh/rh-nginx${NGINX_SHORT_VER} && \
+    chmod -R a+rwx ${NGINX_CONTAINER_SCRIPTS_PATH}/nginx-start && \
+    chown -R 1001:0 ${NGINX_APP_ROOT} && \
+    chown -R 1001:0 /var/opt/rh/rh-nginx${NGINX_SHORT_VER} && \
+    chown -R 1001:0 ${NGINX_CONTAINER_SCRIPTS_PATH}/nginx-start && \
+    chown -R 1001:0 /etc/opt/rh/rh-php${PHP_VER_SHORT}/php.d && \
+    chown 1001:0 /etc/opt/rh/rh-php${PHP_VER_SHORT}/php.ini && \
+    chown 1001:0 /var/opt/rh/rh-php${PHP_VER_SHORT}/run/php-fpm && \
+    sed -i 's/apache/default/g;s/group = default/group = nginx/' /etc/opt/rh/rh-php${PHP_VER_SHORT}/php-fpm.d/www.conf && \
+    rpm-file-permissions
 
 USER 1001
 

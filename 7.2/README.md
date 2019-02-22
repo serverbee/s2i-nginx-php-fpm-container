@@ -1,22 +1,16 @@
-PHP 7.2 container image
+NGINX 1.14 + PHP-FPM 7.2 container image
 ================
 
-This container image includes PHP 7.2 as a [S2I](https://github.com/openshift/source-to-image) base image for your PHP 7.2 applications.
-Users can choose between RHEL and CentOS based builder images.
-The RHEL7 image is available in the [Red Hat Container Catalog](https://access.redhat.com/containers/#/registry.access.redhat.com/rhscl/php-72-rhel7)
-as registry.access.redhat.com/rhscl/php-72-rhel7 and the RHEL8 image is available in
-the [Red Hat Container Catalog](https://access.redhat.com/containers/#/registry.access.redhat.com/rhel8/php-72)
-as registry.access.redhat.com/rhel8/php-72.
-The CentOS 7 image is available on [Docker Hub](https://hub.docker.com/r/centos/php-72-centos7/)
-as centos/php-72-centos7.
-After CentOS 8 is be released the image will be available on [Docker Hub](https://hub.docker.com/r/centos/php-72-centos8/)
-as centos/php-72-centos8.
+This container image includes NGINX 1.14 + PHP-FPM 7.2 as a [S2I](https://github.com/openshift/source-to-image) base image for your PHP 7.2 applications.
+Users can use CentOS based builder images.
+The CentOS 7 image is available on [Docker Hub](https://hub.docker.com/r/serverbee/nginx-php-fpm-72-centos7/)
+as serverbee/nginx-php-fpm-72-centos7.
 The resulting image can be run using [Docker](http://docker.io).
 
 Description
 -----------
 
-PHP 7.2 available as container is a base platform for
+NGINX 1.14 + PHP-FPM 7.2 available as container is a base platform for
 building and running various PHP 7.2 applications and frameworks.
 PHP is an HTML-embedded scripting language. PHP attempts to make it easy for developers 
 to write dynamically generated web pages. PHP also offers built-in database integration 
@@ -35,21 +29,9 @@ To build a simple [php-test-app](https://github.com/sclorg/s2i-php-container/tre
 using standalone [S2I](https://github.com/openshift/source-to-image) and then run the
 resulting image with [Docker](http://docker.io) execute:
 
-*  **For RHEL7 based image**
-    ```
-    $ s2i build https://github.com/sclorg/s2i-php-container.git --context-dir=7.2/test/test-app rhel7/php-72 php-test-app
-    $ docker run -p 8080:8080 php-test-app
-    ```
-
-*  **For RHEL8 based image**
-    ```
-    $ s2i build https://github.com/sclorg/s2i-php-container.git --context-dir=7.2/test/test-app rhel8/php-72 php-test-app
-    $ docker run -p 8080:8080 php-test-app
-    ```
-
 *  **For CentOS based image**
     ```
-    $ s2i build https://github.com/sclorg/s2i-php-container.git --context-dir=7.2/test/test-app centos/php-72-centos7 php-test-app
+    $ s2i build https://github.com/serverbee/s2i-nginx-php-fpm-container.git --context-dir=7.2/test/test-app serverbee/nginx-php-fpm-72-centos7 php-test-app
     $ docker run -p 8080:8080 php-test-app
     ```
 
@@ -125,23 +107,6 @@ You can also override the entire directory used to load the PHP configuration by
 * **PHP_INI_SCAN_DIR**
   * Path to scan for additional ini configuration files
 
-You can override the Apache [MPM prefork](https://httpd.apache.org/docs/2.4/mod/mpm_common.html)
-settings to increase the performance for of the PHP application. In case you set
-the Cgroup limits in Docker, the image will attempt to automatically set the
-optimal values. You can override this at any time by specifying the values
-yourself:
-
-* **HTTPD_START_SERVERS**
-  * The [StartServers](https://httpd.apache.org/docs/2.4/mod/mpm_common.html#startservers)
-    directive sets the number of child server processes created on startup.
-  * Default: 8
-* **HTTPD_MAX_REQUEST_WORKERS**
-  * The [MaxRequestWorkers](https://httpd.apache.org/docs/2.4/mod/mpm_common.html#maxrequestworkers)
-    directive sets the limit on the number of simultaneous requests that will be served.
-  * `MaxRequestWorkers` was called `MaxClients` before version httpd 2.3.13.
-  * Default: 256 (this is automatically tuned by setting Cgroup limits for the container using this formula:
-    `TOTAL_MEMORY / 15MB`. The 15MB is average size of a single httpd process.
-
   You can use a custom composer repository mirror URL to download packages instead of the default 'packagist.org':
 
     * **COMPOSER_MIRROR**
@@ -163,13 +128,6 @@ However, if these files exist they will affect the behavior of the build process
   List of dependencies to be installed with `composer`. The format is documented
   [here](https://getcomposer.org/doc/04-schema.md).
 
-
-* **.htaccess**
-
-  In case the **DocumentRoot** of the application is nested within the source directory `/opt/app-root/src`,
-  users can provide their own Apache **.htaccess** file.  This allows the overriding of Apache's behavior and
-  specifies how application requests should be handled. The **.htaccess** file needs to be located at the root
-  of the application source.
 
 Hot deploy
 ---------------------
@@ -198,10 +156,6 @@ The structure of the application can look like this:
 
 | Folder name       | Description                |
 |-------------------|----------------------------|
-| `./httpd-cfg`     | Can contain additional Apache configuration files (`*.conf`)|
-| `./httpd-ssl`     | Can contain own SSL certificate (in `certs/` subdirectory) and key (in `private/` subdirectory)|
-| `./php-pre-start`| Can contain shell scripts (`*.sh`) that are sourced before `httpd` is started|
-| `./php-post-assemble`| Can contain shell scripts (`*.sh`) that are sourced at the end of `assemble` script|
 | `./`              | Application source code |
 
 
