@@ -95,9 +95,9 @@ RUN sed -i -f ${NGINX_APP_ROOT}/nginxconf.sed ${NGINX_CONF_PATH} && \
     chown -R 1001:0 ${NGINX_APP_ROOT} && \
     chown -R 1001:0 /var/opt/rh/rh-nginx${NGINX_SHORT_VER} && \
     chown -R 1001:0 ${NGINX_CONTAINER_SCRIPTS_PATH}/nginx-start && \
-    chown -R 1001:0 /etc/opt/rh/rh-php${PHP_VER_SHORT}/php.d && \
-    chown 1001:0 /etc/opt/rh/rh-php${PHP_VER_SHORT}/php.ini && \
-    chown 1001:0 /var/opt/rh/rh-php${PHP_VER_SHORT}/run/php-fpm && \
+    chmod -R a+rwx /etc/opt/rh/rh-php${PHP_VER_SHORT}/php.d && \
+    chmod a+rw /etc/opt/rh/rh-php${PHP_VER_SHORT}/php.ini && \
+    chmod a+rwx /var/opt/rh/rh-php${PHP_VER_SHORT}/run/php-fpm && \
     sed -i 's/apache/default/g;s/group = default/group = nginx/' /etc/opt/rh/rh-php${PHP_VER_SHORT}/php-fpm.d/www.conf && \
     rpm-file-permissions
 
